@@ -27,7 +27,7 @@ COPY docker/php.ini $PHP_INI_DIR/conf.d/zz-app.ini
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # ---------------------------------------------------------------------------
-# Build: composer deps + Vite assets (Wayfinder needs PHP during vite build)
+# Build: Composer dependencies + Vite assets
 # ---------------------------------------------------------------------------
 FROM base AS build
 
@@ -56,9 +56,7 @@ ENV APP_ENV=production \
     LOG_CHANNEL=stderr
 
 ARG USER=app
-# The app listens on a high port, so drop FrankenPHP's cap_net_bind_service file
-# capability; platforms that forbid privilege escalation (e.g. Render) refuse to
-# exec binaries carrying file capabilities ("Operation not permitted")
+
 RUN setcap -r /usr/local/bin/frankenphp \
     && useradd --create-home --uid 1000 ${USER} \
     && chown ${USER}:${USER} /app \
