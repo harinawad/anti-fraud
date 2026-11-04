@@ -1,0 +1,5 @@
+secured: true
+workers:
+  - queue
+  - schedule
+  - vite
