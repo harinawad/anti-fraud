@@ -3,6 +3,8 @@ set -e
 
 cd /app
 
+echo "==> Entrypoint starting (command: $*)"
+
 # Platforms like Render inject the port to listen on via $PORT
 export SERVER_NAME="${SERVER_NAME:-:${PORT:-8080}}"
 
@@ -47,6 +49,13 @@ case "${DB_CONNECTION:-}" in
         ;;
 esac
 
+# Laravel's writable dirs (may be excluded from the image by .dockerignore)
+mkdir -p storage/framework/cache storage/framework/sessions \
+         storage/framework/views storage/logs bootstrap/cache
+
+# Drop any config/route cache baked into the image so Render's env vars win
+php artisan optimize:clear >/dev/null
+
 php artisan storage:link --force >/dev/null 2>&1 || true
 
 is_enabled() {
@@ -56,19 +65,26 @@ is_enabled() {
     esac
 }
 
-if is_enabled "${RUN_MIGRATIONS:-}"; then
+# Migrations run by default (sessions/cache tables need them).
+# Set RUN_MIGRATIONS=false on Render to skip.
+if is_enabled "${RUN_MIGRATIONS:-true}"; then
+    echo "==> Running migrations (connection: ${DB_CONNECTION:-<default>})"
     php artisan migrate --force
+    php artisan migrate:status
 else
-    echo "Skipping migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS:-<not set>})"
+    echo "==> Skipping migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS})"
 fi
 
-# Seeds roles, categories and the admin user; safe to run on every deploy
-if is_enabled "${RUN_SEEDERS:-}"; then
+# Seeds roles, categories and the admin user; safe to run on every deploy.
+# Opt-in: set RUN_SEEDERS=true on Render.
+if is_enabled "${RUN_SEEDERS:-false}"; then
+    echo "==> Running ProductionSeeder"
     php artisan db:seed --class=ProductionSeeder --force
 else
-    echo "Skipping seeders (RUN_SEEDERS=${RUN_SEEDERS:-<not set>})"
+    echo "==> Skipping seeders (RUN_SEEDERS=${RUN_SEEDERS:-<not set>})"
 fi
 
 php artisan optimize
 
+echo "==> Starting: $*"
 exec "$@"
