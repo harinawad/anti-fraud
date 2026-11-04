@@ -2,21 +2,23 @@
 FROM php:8.5-apache
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     unzip \
     zip \
     libpng-dev \
-    libjpeg-dev \
+    libjpeg62-turbo-dev \
     libfreetype6-dev \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
     libicu-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install \
-    pdo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure and install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
     pdo_mysql \
     mbstring \
     exif \
@@ -25,33 +27,35 @@ RUN apt-get update && apt-get install -y \
     gd \
     zip \
     intl \
-    opcache \
-    && a2enmod rewrite \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    opcache
+
+# Enable Apache rewrite
+RUN a2enmod rewrite
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Set working directory
 WORKDIR /var/www/html
 
-# Copy project
+# Copy Laravel application
 COPY . .
 
-# Install Laravel dependencies
+# Install Composer dependencies
 RUN composer install \
     --no-dev \
-    --optimize-autoloader \
-    --no-interaction
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader
 
-# Configure Apache
+# Configure Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
+RUN sed -ri 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
     /etc/apache2/sites-available/000-default.conf \
     /etc/apache2/apache2.conf
 
-# Laravel permissions
+# Set permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
