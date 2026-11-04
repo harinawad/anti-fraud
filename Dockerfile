@@ -16,18 +16,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libicu-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure and install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" \
-    pdo_mysql \
-    mbstring \
-    exif \
-    pcntl \
-    bcmath \
-    gd \
-    zip \
-    intl \
-    opcache
+# Configure GD
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg
+
+# Install PHP extensions without parallel compilation
+RUN docker-php-ext-install pdo_mysql
+
+RUN docker-php-ext-install mbstring
+
+RUN docker-php-ext-install exif
+
+RUN docker-php-ext-install pcntl
+
+RUN docker-php-ext-install bcmath
+
+RUN docker-php-ext-install gd
+
+RUN docker-php-ext-install zip
+
+RUN docker-php-ext-install intl
+
+RUN docker-php-ext-install opcache
 
 # Enable Apache rewrite
 RUN a2enmod rewrite
@@ -35,13 +46,13 @@ RUN a2enmod rewrite
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# Laravel working directory
 WORKDIR /var/www/html
 
-# Copy Laravel application
+# Copy project files
 COPY . .
 
-# Install Composer dependencies
+# Install Laravel dependencies
 RUN composer install \
     --no-dev \
     --no-interaction \
@@ -55,7 +66,7 @@ RUN sed -ri 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
     /etc/apache2/sites-available/000-default.conf \
     /etc/apache2/apache2.conf
 
-# Set permissions
+# Laravel permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
